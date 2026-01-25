@@ -1,0 +1,51 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+import { Injectable } from '@nestjs/common';
+import { MailService } from './mail.service';
+
+@Injectable()
+export class OtpMailService {
+  constructor(private readonly mailService: MailService) {}
+
+  async sendOtpEmail(email: string, otp: string, name: string) {
+    const subject = '🔐 Verify Your ByBench Account';
+    const brandColor = '#EA2754';
+
+    const html = `
+      <div style="background-color: #f4f4f7; padding: 40px 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; line-height: 1.6;">
+        <div style="max-width: 550px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.08); border: 1px solid #e1e1e1;">
+          
+          <div style="background-color: ${brandColor}; padding: 35px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -1.5px; text-transform: uppercase;">ByBench</h1>
+            <div style="height: 3px; width: 40px; background-color: #ffffff; margin: 10px auto; border-radius: 2px; opacity: 0.5;"></div>
+          </div>
+
+          <div style="padding: 45px 35px;">
+            <p style="font-size: 18px; font-weight: 600; color: #111; margin-bottom: 15px;">Hey ${name},</p>
+            <p style="color: #555; font-size: 15px; margin-bottom: 30px;">Welcome to the family! We're excited to have you. To keep your account secure, please verify your email address using the code below:</p>
+            
+            <div style="background-color: #fff5f6; border: 2px solid ${brandColor}; border-radius: 12px; padding: 30px; text-align: center; margin-bottom: 30px;">
+              <span style="display: block; font-size: 11px; text-transform: uppercase; color: ${brandColor}; margin-bottom: 10px; font-weight: 800; letter-spacing: 2px;">Verification Code</span>
+              <span style="font-size: 42px; font-weight: 900; color: #111; letter-spacing: 10px; font-family: 'Courier New', Courier, monospace;">${otp}</span>
+            </div>
+
+            <p style="margin: 0; font-size: 13px; color: #888; text-align: center;">
+              Code valid for <span style="color: ${brandColor}; font-weight: 600;">5 minutes</span>. <br>
+              If you didn't create an account, just ignore this message.
+            </p>
+          </div>
+
+          <div style="background-color: #111; padding: 25px; text-align: center;">
+            <p style="margin: 0; font-size: 12px; color: #888;">
+              Questions? Contact us at <a href="mailto:support@bybench.com" style="color: ${brandColor}; text-decoration: none;">support@bybench.com</a>
+            </p>
+            <p style="margin: 10px 0 0 0; font-size: 11px; color: #555;">
+              © 2026 ByBench Inc. Dhaka, Bangladesh.
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    return await this.mailService.send(email, subject, html);
+  }
+}
