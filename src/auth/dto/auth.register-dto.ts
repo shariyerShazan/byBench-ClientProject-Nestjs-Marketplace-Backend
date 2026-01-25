@@ -9,7 +9,8 @@ import {
   MinLength,
   Matches,
 } from 'class-validator';
-import { Role } from 'src/generated/prisma/enums';
+import { Role } from 'prisma/generated/prisma/enums';
+// import { Role } from 'src/generated/prisma/enums';
 
 export class RegisterDto {
   @ApiProperty({ example: 'Shariyer', description: 'First name of the user' })

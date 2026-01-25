@@ -605,6 +605,7 @@ export const AuthScalarFieldEnum = {
   otpAttemp: 'otpAttemp',
   lastLogin: 'lastLogin',
   isVerified: 'isVerified',
+  isSuspended: 'isSuspended',
   role: 'role',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'

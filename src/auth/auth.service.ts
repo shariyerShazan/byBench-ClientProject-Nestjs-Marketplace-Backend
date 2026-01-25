@@ -10,6 +10,7 @@ import {
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { RegisterDto } from './dto/auth.register-dto';
@@ -74,36 +75,42 @@ export class AuthService {
 
   async verifyUser(verifyAutDto: VerifyAuthDto) {
     const { otp, email } = verifyAutDto;
+    const normalizedEmail = email.toLowerCase();
     try {
       const user = await this.prisma.auth.findFirst({
-        where: { email },
+        where: { email: normalizedEmail },
       });
 
-      if (!user) {
-        throw new Error('User not found with this email');
+      if (!user) throw new NotFoundException('User not found');
+      if (user.isVerified)
+        throw new BadRequestException('User already verified');
+      if (user.isSuspended) {
+        throw new ForbiddenException(
+          'Your account is suspended due to too many failed attempts. Please contact support.',
+        );
       }
 
-      if (user.isVerified) {
-        throw new BadRequestException('User is already verified');
-      }
-
-      if (!user.otp || !user.otpExpires) {
-        throw new BadRequestException('OTP is invalid');
-      }
-
-      if (new Date() > user.otpExpires) {
-        throw new BadRequestException('OTP expired');
+      if (!user.otp || !user.otpExpires || new Date() > user.otpExpires) {
+        throw new BadRequestException('OTP expired or invalid');
       }
 
       if (user.otp !== otp) {
-        if (user.otpAttemp >= 5) {
-          throw new ForbiddenException('Too many attempts');
-        }
-        await this.prisma.auth.update({
-          where: { email },
+        const updatedUser = await this.prisma.auth.update({
+          where: { email: normalizedEmail },
           data: { otpAttemp: { increment: 1 } },
         });
-        throw new BadRequestException('Invalid OTP');
+
+        if (updatedUser.otpAttemp >= 5) {
+          await this.prisma.auth.update({
+            where: { email: normalizedEmail },
+            data: { isSuspended: true },
+          });
+          throw new ForbiddenException('Too many attempts. Account suspended.');
+        }
+
+        throw new BadRequestException(
+          `Invalid OTP. Attempts left: ${5 - updatedUser.otpAttemp}`,
+        );
       }
 
       await this.prisma.auth.update({
@@ -112,6 +119,7 @@ export class AuthService {
           isVerified: true,
           otp: null,
           otpExpires: null,
+          otpAttemp: 0,
         },
       });
       return { message: 'Verification successful', success: true };
@@ -138,6 +146,12 @@ export class AuthService {
 
       if (!user.isVerified) {
         throw new ForbiddenException('Please verify your email first');
+      }
+
+      if (user.isSuspended) {
+        throw new ForbiddenException(
+          'Your account is suspended. Please contact support.',
+        );
       }
 
       const isPasswordMatch = await bcrypt.compare(password, user.password);

@@ -6,9 +6,11 @@
 
 generator client {
   provider = "prisma-client"
-   output        = "../src/generated/prisma"
+   output        = "./generated/prisma"
    moduleFormat    = "cjs"
+    binaryTargets   = ["native"]
 }
+
 
 datasource db {
   provider = "postgresql"
@@ -35,7 +37,9 @@ model Auth {
   otpAttemp Int      @default(0)
   lastLogin DateTime @default(now())
   isVerified Boolean  @default(false) 
+  isSuspended  Boolean @default(false)
   role      Role     @default(USER)
+
 
   sellerProfile SellerProfile?
 
