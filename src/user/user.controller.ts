@@ -2,7 +2,12 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Body, Controller, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { CreateSellerProfileDto } from 'src/auth/dto/create-seller-profile.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -15,6 +20,7 @@ import { UpdateProfileDto } from 'src/auth/dto/UpdateProfileDto';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  @ApiConsumes('multipart/form-data')
   @Post('create-seller-profile')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('SELLER')
@@ -25,6 +31,7 @@ export class UserController {
     return await this.userService.createSellerProfile(userId, dto);
   }
 
+  @ApiConsumes('multipart/form-data')
   @Patch('update-profile')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
