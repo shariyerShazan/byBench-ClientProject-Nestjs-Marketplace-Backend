@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
-  BadRequestException,
+  // BadRequestException,
   ConflictException,
   ForbiddenException,
   HttpException,
@@ -9,7 +9,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CreateSellerProfileDto } from 'src/user/dto/create-seller-profile.dto';
-// import { UpdateProfileDto } from 'src/auth/dto/UpdateProfileDto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UpdateProfileDto } from './dto/UpdateProfileDto';
 import Stripe from 'stripe';
@@ -23,6 +22,7 @@ export class UserService {
     });
   }
 
+  // --- SELLER PROFILE CREATION ---
   async createSellerProfile(userId: string, sellerDto: CreateSellerProfileDto) {
     try {
       const user = await this.prisma.auth.findUnique({
@@ -47,7 +47,7 @@ export class UserService {
         metadata: { userId: user.id },
       });
 
-      const profile = await this.prisma.sellerProfile.create({
+      return await this.prisma.sellerProfile.create({
         data: {
           authId: user.id,
           companyName: sellerDto.companyName,
@@ -60,20 +60,13 @@ export class UserService {
           stripeAccountId: stripeAccount.id,
         },
       });
-      //
-      return {
-        success: true,
-        message:
-          'Seller profile created with Stripe ID. Waiting for admin approval.',
-        data: profile,
-      };
     } catch (error) {
       if (error instanceof HttpException) throw error;
-      console.error('Error creating seller profile:', error);
       throw new InternalServerErrorException('Failed to create seller profile');
     }
   }
 
+  // --- PROFILE UPDATE ---
   async updateProfile(userId: string, updateData: UpdateProfileDto) {
     try {
       const user = await this.prisma.auth.findUnique({
@@ -103,17 +96,9 @@ export class UserService {
         },
       });
 
-      if (user.role === 'SELLER' && sellerData) {
-        if (!user.sellerProfile) {
-          throw new BadRequestException(
-            'Seller profile not found. Please create one first.',
-          );
-        }
-
+      if (user.role === 'SELLER' && sellerData && user.sellerProfile) {
         if (!user.isSeller) {
-          throw new ForbiddenException(
-            'Your seller profile is pending approval. You cannot update it until admin approves it.',
-          );
+          throw new ForbiddenException('Seller profile pending approval.');
         }
 
         await this.prisma.sellerProfile.update({
@@ -121,26 +106,140 @@ export class UserService {
           data: {
             companyName:
               sellerData.companyName ?? user.sellerProfile.companyName,
-            companyWebSite:
-              sellerData.companyWebSite ?? user.sellerProfile.companyWebSite,
             address: sellerData.address ?? user.sellerProfile.address,
             city: sellerData.city ?? user.sellerProfile.city,
             state: sellerData.state ?? user.sellerProfile.state,
             zip: sellerData.zip ?? user.sellerProfile.zip,
-            country: sellerData.country ?? user.sellerProfile.country,
           },
         });
       }
 
-      return {
-        success: true,
-        message: 'Profile updated successfully',
-        data: updatedAuth,
-      };
+      return { success: true, data: updatedAuth };
     } catch (error) {
       if (error instanceof HttpException) throw error;
-      console.error('Update Profile Error:', error);
-      throw new InternalServerErrorException('Failed to update profile');
+      throw new InternalServerErrorException('Update failed');
     }
+  }
+
+  // --- GET ME ---
+  async getMe(userId: string) {
+    const user = await this.prisma.auth.findUnique({
+      where: { id: userId },
+      include: {
+        sellerProfile: true,
+        _count: { select: { postedAds: true, boughtAds: true, bids: true } },
+      },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    return { success: true, data: user };
+  }
+
+  // --- GET MY ADS (SELLER) ---
+  async getMyAds(
+    userId: string,
+    query: { page?: number; limit?: number; search?: string },
+  ) {
+    const { page = 1, limit = 10, search } = query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const where: any = {
+      sellerId: userId,
+      ...(search && {
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ],
+      }),
+    };
+
+    const [total, ads] = await Promise.all([
+      this.prisma.ad.count({ where }),
+      this.prisma.ad.findMany({
+        where,
+        skip,
+        take: Number(limit),
+        include: {
+          category: { select: { name: true } },
+          _count: { select: { bids: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      success: true,
+      meta: { total, page, lastPage: Math.ceil(total / limit) },
+      data: ads,
+    };
+  }
+
+  // --- GET MY EARNINGS (SELLER) ---
+  async getMyEarnings(
+    userId: string,
+    query: { page?: number; limit?: number },
+  ) {
+    const { page = 1, limit = 10 } = query;
+    const skip = (Number(page) - 1) * Number(limit);
+    const where = { ad: { sellerId: userId } };
+
+    const [total, earnings] = await Promise.all([
+      this.prisma.payment.count({ where }),
+      this.prisma.payment.findMany({
+        where,
+        skip,
+        take: Number(limit),
+        include: {
+          ad: { select: { title: true } },
+          buyer: { select: { firstName: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return { success: true, meta: { total, page }, data: earnings };
+  }
+
+  // --- GET MY PURCHASES (BUYER) ---
+  async getMyPurchases(
+    userId: string,
+    query: { page?: number; limit?: number },
+  ) {
+    const { page = 1, limit = 10 } = query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const [total, purchases] = await Promise.all([
+      this.prisma.payment.count({ where: { buyerId: userId } }),
+      this.prisma.payment.findMany({
+        where: { buyerId: userId },
+        skip,
+        take: Number(limit),
+        include: { ad: { select: { title: true, images: { take: 1 } } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return { success: true, meta: { total, page }, data: purchases };
+  }
+
+  // --- SINGLE ITEM DETAILS ---
+  async getSingleMyAd(userId: string, adId: string) {
+    const ad = await this.prisma.ad.findFirst({
+      where: { id: adId, sellerId: userId },
+      include: { images: true, bids: true, category: true },
+    });
+    if (!ad) throw new NotFoundException('Ad not found');
+    return { success: true, data: ad };
+  }
+
+  async getSinglePayment(userId: string, paymentId: string) {
+    const payment = await this.prisma.payment.findFirst({
+      where: {
+        id: paymentId,
+        OR: [{ buyerId: userId }, { ad: { sellerId: userId } }],
+      },
+      include: { ad: true, buyer: { select: { nickName: true } } },
+    });
+    if (!payment) throw new NotFoundException('Payment not found');
+    return { success: true, data: payment };
   }
 }
