@@ -20,7 +20,8 @@ import { ChatModule } from './chat/chat.module';
 import { AdminModule } from './admin/admin.module';
 import { CommentModule } from './comment/comment.module';
 import { PaymentModule } from './payment/payment.module';
-import { SellerBankModule } from './seller-bank/seller-bank.module';
+import { StripeModule } from './stripe/stripe.module';
+// import { SellerBankModule } from './seller-bank/seller-bank.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { SellerBankModule } from './seller-bank/seller-bank.module';
     AuthModule,
     PrismaModule,
     MailModule,
+    StripeModule,
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET || 'super-secret',
@@ -41,7 +43,7 @@ import { SellerBankModule } from './seller-bank/seller-bank.module';
     AdminModule,
     CommentModule,
     PaymentModule,
-    SellerBankModule,
+    // SellerBankModule,
   ],
   controllers: [AppController],
   providers: [AppService, SeedService, JwtStrategy, PrismaService],

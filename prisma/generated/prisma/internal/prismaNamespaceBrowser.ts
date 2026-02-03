@@ -60,7 +60,6 @@ export const ModelName = {
   AdImage: 'AdImage',
   Bid: 'Bid',
   Payment: 'Payment',
-  SellerBank: 'SellerBank',
   Conversation: 'Conversation',
   Participant: 'Participant',
   Message: 'Message'
@@ -117,6 +116,8 @@ export const SellerProfileScalarFieldEnum = {
   country: 'country',
   status: 'status',
   adminNote: 'adminNote',
+  stripeAccountId: 'stripeAccountId',
+  isStripeVerified: 'isStripeVerified',
   isDeleted: 'isDeleted',
   authId: 'authId'
 } as const
@@ -167,8 +168,9 @@ export const AdScalarFieldEnum = {
   allowPhone: 'allowPhone',
   allowEmail: 'allowEmail',
   isSold: 'isSold',
-  viewerIds: 'viewerIds',
+  buyerId: 'buyerId',
   sellerId: 'sellerId',
+  viewerIds: 'viewerIds',
   categoryId: 'categoryId',
   subCategoryId: 'subCategoryId',
   createdAt: 'createdAt',
@@ -214,29 +216,16 @@ export type BidScalarFieldEnum = (typeof BidScalarFieldEnum)[keyof typeof BidSca
 export const PaymentScalarFieldEnum = {
   id: 'id',
   stripeId: 'stripeId',
-  amount: 'amount',
+  totalAmount: 'totalAmount',
+  adminFee: 'adminFee',
+  sellerAmount: 'sellerAmount',
   adId: 'adId',
-  authId: 'authId',
+  buyerId: 'buyerId',
   status: 'status',
-  invoiceId: 'invoiceId',
-  isPaid: 'isPaid',
   createdAt: 'createdAt'
 } as const
 
 export type PaymentScalarFieldEnum = (typeof PaymentScalarFieldEnum)[keyof typeof PaymentScalarFieldEnum]
-
-
-export const SellerBankScalarFieldEnum = {
-  id: 'id',
-  accountHolder: 'accountHolder',
-  bankName: 'bankName',
-  accountNumber: 'accountNumber',
-  routingNumber: 'routingNumber',
-  sellerProfileId: 'sellerProfileId',
-  createdAt: 'createdAt'
-} as const
-
-export type SellerBankScalarFieldEnum = (typeof SellerBankScalarFieldEnum)[keyof typeof SellerBankScalarFieldEnum]
 
 
 export const ConversationScalarFieldEnum = {

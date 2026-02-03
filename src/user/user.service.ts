@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
   BadRequestException,
   ConflictException,
@@ -11,10 +12,16 @@ import { CreateSellerProfileDto } from 'src/user/dto/create-seller-profile.dto';
 // import { UpdateProfileDto } from 'src/auth/dto/UpdateProfileDto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UpdateProfileDto } from './dto/UpdateProfileDto';
+import Stripe from 'stripe';
 
 @Injectable()
 export class UserService {
-  constructor(private readonly prisma: PrismaService) {}
+  private stripe: Stripe;
+  constructor(private readonly prisma: PrismaService) {
+    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: '2025-01-27' as any,
+    });
+  }
 
   async createSellerProfile(userId: string, sellerDto: CreateSellerProfileDto) {
     try {
@@ -29,6 +36,17 @@ export class UserService {
       if (user.sellerProfile)
         throw new ConflictException('Profile already exists');
 
+      const stripeAccount = await this.stripe.accounts.create({
+        type: 'express',
+        country: sellerDto.country,
+        email: user.email,
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+        },
+        metadata: { userId: user.id },
+      });
+
       const profile = await this.prisma.sellerProfile.create({
         data: {
           authId: user.id,
@@ -39,12 +57,14 @@ export class UserService {
           companyWebSite: sellerDto.companyWebSite,
           country: sellerDto.country,
           state: sellerDto.state,
+          stripeAccountId: stripeAccount.id,
         },
       });
       //
       return {
         success: true,
-        message: 'Seller profile submitted. Waiting for admin approval.',
+        message:
+          'Seller profile created with Stripe ID. Waiting for admin approval.',
         data: profile,
       };
     } catch (error) {

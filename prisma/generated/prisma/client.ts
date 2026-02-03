@@ -83,11 +83,6 @@ export type Bid = Prisma.BidModel
  */
 export type Payment = Prisma.PaymentModel
 /**
- * Model SellerBank
- * 
- */
-export type SellerBank = Prisma.SellerBankModel
-/**
  * Model Conversation
  * 
  */
