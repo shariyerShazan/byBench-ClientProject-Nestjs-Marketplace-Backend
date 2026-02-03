@@ -178,4 +178,176 @@ export class AdminService {
       throw new InternalServerErrorException('Delete failed');
     }
   }
+
+  async getAllUsers(query: {
+    page?: number;
+    limit?: number;
+    role?: 'USER' | 'ADMIN' | 'SELLER';
+    isSeller?: string;
+    isSuspended?: string;
+    search?: string;
+  }) {
+    const { page = 1, limit = 10, role, isSeller, isSuspended, search } = query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const where: any = {
+      ...(role && { role }),
+      ...(isSeller !== undefined && { isSeller: isSeller === 'true' }),
+      ...(isSuspended !== undefined && { isSuspended: isSuspended === 'true' }),
+      ...(search && {
+        OR: [
+          { email: { contains: search, mode: 'insensitive' } },
+          { nickName: { contains: search, mode: 'insensitive' } },
+        ],
+      }),
+    };
+
+    const [total, users] = await Promise.all([
+      this.prisma.auth.count({ where }),
+      this.prisma.auth.findMany({
+        where,
+        skip,
+        take: Number(limit),
+        include: {
+          sellerProfile: true,
+          _count: {
+            select: { postedAds: true, boughtAds: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      success: true,
+      meta: { total, page: Number(page), limit: Number(limit) },
+      data: users,
+    };
+  }
+
+  async getAllPayments(query: {
+    page?: number;
+    limit?: number;
+    status?: 'PENDING' | 'COMPLETED' | 'FAILED';
+  }) {
+    const { page = 1, limit = 10, status } = query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const where = status ? { status } : {};
+
+    const [total, payments] = await Promise.all([
+      this.prisma.payment.count({ where }),
+      this.prisma.payment.findMany({
+        where,
+        skip,
+        take: Number(limit),
+        include: {
+          buyer: { select: { nickName: true, email: true } },
+          ad: { select: { title: true, price: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      success: true,
+      meta: { total, page: Number(page), limit: Number(limit) },
+      data: payments,
+    };
+  }
+
+  async getAllAds(query: {
+    page?: number;
+    limit?: number;
+    type?: 'FIXED' | 'AUCTION';
+    isSold?: string;
+    search?: string;
+  }) {
+    const { page = 1, limit = 10, type, isSold, search } = query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const where: any = {
+      ...(type && { type }),
+      ...(isSold !== undefined && { isSold: isSold === 'true' }),
+      ...(search && {
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { city: { contains: search, mode: 'insensitive' } },
+        ],
+      }),
+    };
+
+    const [total, ads] = await Promise.all([
+      this.prisma.ad.count({ where }),
+      this.prisma.ad.findMany({
+        where,
+        skip,
+        take: Number(limit),
+        include: {
+          seller: { select: { nickName: true, email: true } },
+          category: { select: { name: true } },
+          _count: { select: { bids: true, comments: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      success: true,
+      meta: { total, page: Number(page), limit: Number(limit) },
+      data: ads,
+    };
+  }
+
+  async getSingleUser(userId: string) {
+    const user = await this.prisma.auth.findUnique({
+      where: { id: userId },
+      include: {
+        sellerProfile: true,
+        postedAds: { take: 5, orderBy: { createdAt: 'desc' } }, // Last 5 ads
+        boughtAds: { take: 5, orderBy: { createdAt: 'desc' } }, // Last 5 purchases
+        _count: { select: { postedAds: true, boughtAds: true, bids: true } },
+      },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+    return { success: true, data: user };
+  }
+
+  async getSingleAd(adId: string) {
+    const ad = await this.prisma.ad.findUnique({
+      where: { id: adId },
+      include: {
+        seller: { select: { nickName: true, email: true, phone: true } },
+        category: true,
+        subCategory: true,
+        images: true,
+        bids: {
+          include: { bidder: { select: { nickName: true } } },
+          orderBy: { amount: 'desc' },
+        },
+        payment: true,
+      },
+    });
+
+    if (!ad) throw new NotFoundException('Ad not found');
+    return { success: true, data: ad };
+  }
+
+  async getSinglePayment(paymentId: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        buyer: { select: { firstName: true, email: true, phone: true } },
+        ad: {
+          include: {
+            seller: { select: { firstName: true, email: true } },
+          },
+        },
+      },
+    });
+
+    if (!payment) throw new NotFoundException('Payment record not found');
+    return { success: true, data: payment };
+  }
 }
