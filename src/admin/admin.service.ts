@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/require-await */
+
 import {
   Injectable,
   ConflictException,
@@ -14,15 +14,20 @@ import {
   AdminUpdateSellerDto,
 } from './dto/admin-seller.dto';
 import { AllMailService } from 'src/mail/all-mail.service';
+import Stripe from 'stripe';
 
 @Injectable()
 export class AdminService {
+  stripe: Stripe;
   constructor(
     private readonly prisma: PrismaService,
     private readonly allMailService: AllMailService,
-  ) {}
+  ) {
+    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: '2025-01-27' as any,
+    });
+  }
 
-  // 1. Create Seller & Send Credentials
   async createSellerByAdmin(dto: AdminCreateSellerDto) {
     try {
       const existingUser = await this.prisma.auth.findFirst({
@@ -31,6 +36,15 @@ export class AdminService {
 
       if (existingUser)
         throw new ConflictException('Email or Phone already exists');
+
+      const stripeAccount = await this.stripe.accounts.create({
+        type: 'express',
+        email: dto.email,
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+        },
+      });
 
       const hashedPassword = await bcrypt.hash(dto.password, 10);
 
@@ -59,6 +73,8 @@ export class AdminService {
             zip: dto.zip,
             country: dto.country,
             status: 'APPROVED',
+            stripeAccountId: stripeAccount.id,
+            isStripeVerified: false,
           },
         });
       });
@@ -75,10 +91,11 @@ export class AdminService {
 
       return {
         success: true,
-        message: 'Seller created and credentials sent to mail',
+        message: 'Seller created with Stripe ID and credentials sent to mail',
       };
     } catch (error) {
       if (error instanceof HttpException) throw error;
+      console.error(error);
       throw new InternalServerErrorException('Failed to create seller');
     }
   }

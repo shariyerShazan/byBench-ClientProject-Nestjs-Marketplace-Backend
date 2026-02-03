@@ -45,10 +45,11 @@ model Auth {
 
   comments       Comment[]
 
-  ads            Ad[]  
   bids           Bid[]   
-  payments       Payment[]
-
+  postedAds       Ad[]           @relation("SellerAds")
+  boughtAds       Ad[]           @relation("BuyerAds")
+  
+  payments        Payment[]      @relation("BuyerPayments") 
 
   sentMessages    Message[]      @relation("SentMessages")
   conversations   Participant[]
@@ -71,7 +72,8 @@ model SellerProfile {
   status         SellerStatus @default(PENDING)
   adminNote      String?
 
-   sellerBank      SellerBank?
+   stripeAccountId      String? @unique 
+   isStripeVerified    Boolean  @default(false)
 
   isDeleted Boolean @default(false)
 
@@ -147,13 +149,17 @@ model Ad {
   allowPhone    Boolean     @default(true)
   allowEmail    Boolean     @default(true)
 
-  // status        AdStatus    @default(PENDING)
-  isSold        Boolean     @default(false)
+  isSold    Boolean @default(false)
+
+  buyerId         String? 
+  buyer           Auth?          @relation("BuyerAds", fields: [buyerId], references: [id])
+  seller          Auth           @relation("SellerAds", fields: [sellerId], references: [id])
+  sellerId        String
+
+
   viewerIds     String[]    @default([])
 
   images        AdImage[]
-  seller        Auth        @relation(fields: [sellerId], references: [id])
-  sellerId      String
   category      Category    @relation(fields: [categoryId], references: [id])
   categoryId    String
   subCategory   SubCategory @relation(fields: [subCategoryId], references: [id])
@@ -175,6 +181,7 @@ model Comment {
 
   userId    String
   user    Auth      @relation(fields: [userId], references: [id])
+
   adId      String
   ad      Ad        @relation(fields: [adId], references: [id])
   parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
@@ -204,37 +211,20 @@ model Bid {
 
 
 model Payment {
-  id            String        @id @default(uuid())
-  stripeId      String        @unique
-  amount        Float
+  id           String        @id @default(uuid())
+  stripeId     String        @unique
+  totalAmount  Float   
+  adminFee     Float     
+  sellerAmount Float     
 
+  adId         String        @unique
+  ad           Ad            @relation(fields: [adId], references: [id])
 
-  adId        String    @unique
-  ad   Ad   @relation(fields: [adId], references: [id])
-  authId        String
-  auth          Auth          @relation(fields: [authId], references: [id])
+  buyerId         String
+  buyer           Auth           @relation("BuyerPayments", fields: [buyerId], references: [id])
 
-
-  status        PaymentStatus @default(PENDING)
-  invoiceId     String?       @unique
-  isPaid      Status    @default(PENDING)
-  
-  createdAt     DateTime      @default(now())
-}
-
-
-
-model SellerBank {
-  id            String   @id @default(uuid())
-  accountHolder String
-  bankName      String?
-  accountNumber String
-  routingNumber String?
-  
-  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
-  sellerProfileId String        @unique 
-
-  createdAt     DateTime @default(now())
+  status       PaymentStatus @default(PENDING)
+  createdAt    DateTime      @default(now())
 }
 
 

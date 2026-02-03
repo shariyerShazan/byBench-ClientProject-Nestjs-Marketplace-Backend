@@ -1,7 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/require-await */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
+
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unused-vars */
@@ -12,6 +10,7 @@ import {
   NotFoundException,
   ForbiddenException,
   HttpException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAdDto, UpdateAddDto } from './dto/CreateAdDto';
@@ -24,6 +23,35 @@ export class AddService {
     private readonly cloudinary: CloudinaryService,
   ) {}
 
+  private transformAdData(ad: any) {
+    const { seller, buyer, ...adData } = ad;
+
+    // Seller Info Filter
+    const sellerInfo = {
+      id: seller.id,
+      nickName: seller.nickName,
+      profilePicture: seller.profilePicture,
+      email: ad.allowEmail ? seller.email : 'Private',
+      phone: ad.allowPhone ? seller.phone : 'Private',
+    };
+
+    // Address Privacy Filter
+    if (!ad.showAddress) {
+      adData.state = 'Private';
+      adData.city = 'Private';
+      adData.zipCode = '****';
+      adData.country = 'Private';
+      adData.latitude = null;
+      adData.longitude = null;
+    }
+
+    return {
+      ...adData,
+      seller: sellerInfo,
+      buyer: ad.isSold && buyer ? { nickName: buyer.nickName } : null,
+    };
+  }
+
   // --- CREATE AD ---
   async createAd(
     sellerId: string,
@@ -31,39 +59,23 @@ export class AddService {
     files: Express.Multer.File[],
   ) {
     try {
-      if (!files || files.length === 0) {
-        throw new HttpException('At least one image is required', 400);
-      }
+      if (!files || files.length === 0)
+        throw new BadRequestException('At least one image is required');
 
       const imageUrls = await this.cloudinary.uploadImages(files);
 
-      const {
-        categoryId,
-        subCategoryId,
-        price,
-        latitude,
-        longitude,
-        showAddress,
-        allowPhone,
-        allowEmail,
-        specifications,
-        ...rest
-      } = createAdDto;
-
-      const categoryExists = await this.prisma.category.findUnique({
-        where: { id: categoryId },
-      });
-      if (!categoryExists) throw new NotFoundException('Category not found');
+      const { categoryId, subCategoryId, specifications, ...rest } =
+        createAdDto;
 
       const newAd = await this.prisma.ad.create({
         data: {
           ...rest,
-          price: price ? Number(price) : null,
-          latitude: latitude ? Number(latitude) : null,
-          longitude: longitude ? Number(longitude) : null,
-          showAddress: String(showAddress) === 'true',
-          allowPhone: String(allowPhone) === 'true',
-          allowEmail: String(allowEmail) === 'true',
+          price: rest.price ? Number(rest.price) : null,
+          latitude: rest.latitude ? Number(rest.latitude) : null,
+          longitude: rest.longitude ? Number(rest.longitude) : null,
+          showAddress: String(rest.showAddress) === 'true',
+          allowPhone: String(rest.allowPhone) === 'true',
+          allowEmail: String(rest.allowEmail) === 'true',
           specifications:
             typeof specifications === 'string'
               ? JSON.parse(specifications)
@@ -71,7 +83,6 @@ export class AddService {
           categoryId,
           subCategoryId,
           sellerId,
-          isSold: false,
           images: {
             create: imageUrls.map((url, index) => ({
               url: url,
@@ -84,11 +95,7 @@ export class AddService {
 
       return { message: 'Ad posted successfully.', success: true, data: newAd };
     } catch (error: any) {
-      console.error('--- DEBUG: CREATE AD ERROR ---');
-      console.error(error); // Terminal-e error details dekhabe
-
       if (error instanceof HttpException) throw error;
-      // Detailed error message frontend-e pathabe debug korar jonno
       throw new InternalServerErrorException(
         error.message || 'Prisma/Database Error',
       );
@@ -102,83 +109,56 @@ export class AddService {
     files?: Express.Multer.File[],
   ) {
     try {
-      // 1. Existing Ad Check
       const existingAd = await this.prisma.ad.findUnique({
         where: { id: adId },
-        include: { images: true },
       });
 
       if (!existingAd) throw new NotFoundException('Ad not found');
-      if (existingAd.isSold)
-        throw new ForbiddenException('Sold items cannot be updated!');
       if (existingAd.sellerId !== sellerId)
         throw new ForbiddenException('Not authorized');
 
-      // Error fix korar jonno eivabe likho:
+      // 1. Delete requested images
       if (updateAdDto.imagesToDelete) {
-        let idsToDelete: string[] = [];
+        const idsToDelete = Array.isArray(updateAdDto.imagesToDelete)
+          ? updateAdDto.imagesToDelete
+          : (updateAdDto.imagesToDelete as string).split(',');
 
-        // Type casting korlam jate TS error na dey
-        const rawImagesToDelete = updateAdDto.imagesToDelete as any;
-
-        if (Array.isArray(rawImagesToDelete)) {
-          idsToDelete = rawImagesToDelete;
-        } else if (typeof rawImagesToDelete === 'string') {
-          idsToDelete = rawImagesToDelete.split(',').map((id) => id.trim());
-        }
-
-        if (idsToDelete.length > 0) {
-          await this.prisma.adImage.deleteMany({
-            where: { id: { in: idsToDelete }, adId: adId },
-          });
-        }
+        await this.prisma.adImage.deleteMany({
+          where: { id: { in: idsToDelete }, adId },
+        });
       }
 
+      // 2. Upload new images
       let newImageUrls: string[] = [];
-      if (files && files.length > 0) {
+      if (files && files?.length > 0)
         newImageUrls = await this.cloudinary.uploadImages(files);
-      }
 
-      const { imagesToDelete, ...updateData } = updateAdDto;
+      // 3. Prepare data
+      const { imagesToDelete, specifications, ...rest } = updateAdDto;
 
       const updatedAd = await this.prisma.ad.update({
         where: { id: adId },
         data: {
-          ...updateData,
-          // Multipart form theke asha data transform
-          price: updateData.price ? Number(updateData.price) : undefined,
-          latitude: updateData.latitude
-            ? Number(updateData.latitude)
-            : undefined,
-          longitude: updateData.longitude
-            ? Number(updateData.longitude)
-            : undefined,
-
+          ...rest,
+          price: rest.price ? Number(rest.price) : undefined,
+          latitude: rest.latitude ? Number(rest.latitude) : undefined,
+          longitude: rest.longitude ? Number(rest.longitude) : undefined,
           showAddress:
-            updateData.showAddress !== undefined
-              ? String(updateData.showAddress) === 'true'
+            rest.showAddress !== undefined
+              ? String(rest.showAddress) === 'true'
               : undefined,
           allowPhone:
-            updateData.allowPhone !== undefined
-              ? String(updateData.allowPhone) === 'true'
+            rest.allowPhone !== undefined
+              ? String(rest.allowPhone) === 'true'
               : undefined,
           allowEmail:
-            updateData.allowEmail !== undefined
-              ? String(updateData.allowEmail) === 'true'
+            rest.allowEmail !== undefined
+              ? String(rest.allowEmail) === 'true'
               : undefined,
-          //   isSold:
-          //     updateData.isSold !== undefined
-          //       ? String(updateData.isSold) === 'true'
-          //       : undefined,
-
-          // JSON parsing for specifications
-
           specifications:
-            typeof updateData.specifications === 'string'
-              ? JSON.parse(updateData.specifications)
-              : updateData.specifications,
-
-          // New images add
+            typeof specifications === 'string'
+              ? JSON.parse(specifications)
+              : specifications,
           images:
             newImageUrls.length > 0
               ? {
@@ -198,9 +178,6 @@ export class AddService {
         data: updatedAd,
       };
     } catch (error: any) {
-      console.error('--- DEBUG: UPDATE AD ERROR ---');
-      console.error(error);
-
       if (error instanceof HttpException) throw error;
       throw new InternalServerErrorException(error.message || 'Update failed');
     }
@@ -208,61 +185,30 @@ export class AddService {
 
   async getAllAds(query: any) {
     try {
-      const { page = 1, limit = 10, search, isSold, sortByPrice } = query;
+      const { page = 1, limit = 10, search, isSold, categoryId } = query;
       const skip = (Number(page) - 1) * Number(limit);
 
       const where: any = {
         ...(search && { title: { contains: search, mode: 'insensitive' } }),
         ...(isSold !== undefined && { isSold: isSold === 'true' }),
+        ...(categoryId && { categoryId }),
       };
 
       const [total, ads] = await Promise.all([
         this.prisma.ad.count({ where }),
         this.prisma.ad.findMany({
           where,
-          include: {
-            images: true,
-            category: { select: { name: true } },
-            seller: true,
-          },
-          orderBy: sortByPrice ? { price: sortByPrice } : { createdAt: 'desc' },
+          include: { images: true, category: true, seller: true, buyer: true },
+          orderBy: { createdAt: 'desc' },
           skip,
           take: Number(limit),
         }),
       ]);
 
-      const filteredAds = ads.map((ad) => {
-        const sellerInfo: any = {
-          nickName: ad.seller.nickName,
-          profilePicture: ad.seller.profilePicture,
-        };
-
-        sellerInfo.email = ad.allowEmail ? ad.seller.email : 'Private';
-        sellerInfo.phone = ad.allowPhone ? ad.seller.phone : 'Private';
-
-        const adItem: any = { ...ad };
-        if (!ad.showAddress) {
-          adItem.state = 'Private';
-          adItem.city = 'Private';
-          adItem.zipCode = '****';
-          adItem.country = 'Private';
-          adItem.latitude = null;
-          adItem.longitude = null;
-        }
-
-        delete adItem.seller;
-        return { ...adItem, seller: sellerInfo };
-      });
-
       return {
         success: true,
-        meta: {
-          total,
-          page: Number(page),
-          limit: Number(limit),
-          totalPages: Math.ceil(total / Number(limit)),
-        },
-        data: filteredAds,
+        meta: { total, page: Number(page), limit: Number(limit) },
+        data: ads.map((ad) => this.transformAdData(ad)),
       };
     } catch (error: any) {
       throw new InternalServerErrorException(error.message);
@@ -296,42 +242,12 @@ export class AddService {
           category: true,
           subCategory: true,
           seller: true,
+          buyer: true,
         },
       });
 
       if (!ad) throw new NotFoundException('Ad not found');
-
-      const sellerInfo: any = {
-        firstName: ad.seller.firstName,
-        lastName: ad.seller.lastName,
-        nickName: ad.seller.nickName,
-        profilePicture: ad.seller.profilePicture,
-      };
-
-      sellerInfo.email = ad.allowEmail ? ad.seller.email : 'Private';
-      sellerInfo.phone = ad.allowPhone ? ad.seller.phone : 'Private';
-
-      // 2. Address Privacy Filter
-      const adData: any = { ...ad };
-
-      if (!ad.showAddress) {
-        adData.state = 'Private';
-        adData.city = 'Private';
-        adData.zipCode = '****';
-        adData.country = 'Private';
-        adData.latitude = null;
-        adData.longitude = null;
-      }
-
-      delete adData.seller; // Purano seller object delete
-
-      return {
-        success: true,
-        data: {
-          ...adData,
-          seller: sellerInfo,
-        },
-      };
+      return { success: true, data: this.transformAdData(ad) };
     } catch (error: any) {
       console.error('--- DEBUG: GET AD ERROR ---');
       console.error(error);
@@ -362,5 +278,73 @@ export class AddService {
       success: true,
       //   data: updatedAd,
     };
+  }
+
+  async recordView(adId: string, userId: string) {
+    try {
+      const ad = await this.prisma.ad.findUnique({
+        where: { id: adId },
+        select: { viewerIds: true },
+      });
+
+      if (!ad) throw new NotFoundException('Ad not found');
+
+      // Check jodi user agei dekhe thake (Unique view logic)
+      if (!ad.viewerIds.includes(userId)) {
+        await this.prisma.ad.update({
+          where: { id: adId },
+          data: {
+            viewerIds: {
+              push: userId, // Array-te user ID-ta dhukay dibe
+            },
+          },
+        });
+      }
+
+      return { success: true, message: 'View recorded' };
+    } catch (error: any) {
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException(
+        error.message || 'Failed to record view',
+      );
+    }
+  }
+
+  async getAdViewers(adId: string, sellerId: string) {
+    try {
+      const ad = await this.prisma.ad.findUnique({
+        where: { id: adId },
+        select: { sellerId: true, viewerIds: true },
+      });
+
+      if (!ad) throw new NotFoundException('Ad not found');
+
+      // Shudhu seller tar ad-er viewer list dekhte parbe
+      if (ad.sellerId !== sellerId) {
+        throw new ForbiddenException('You are not the owner of this ad');
+      }
+
+      // Viewer details fetch kora
+      const viewers = await this.prisma.auth.findMany({
+        where: { id: { in: ad.viewerIds } },
+        select: {
+          id: true,
+          nickName: true,
+          profilePicture: true,
+          lastLogin: true,
+        },
+      });
+
+      return {
+        success: true,
+        totalViews: ad.viewerIds.length,
+        data: viewers,
+      };
+    } catch (error: any) {
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException(
+        error.message || 'Failed to fetch viewers',
+      );
+    }
   }
 }

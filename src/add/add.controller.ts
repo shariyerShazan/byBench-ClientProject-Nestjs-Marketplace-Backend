@@ -34,6 +34,7 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { SellerGuard } from 'src/auth/guards/seller.guard';
 import { SellerBankGuard } from 'src/auth/guards/seller-bank.guard';
+// import { SellerBankGuard } from 'src/auth/guards/seller-bank.guard';
 
 @ApiTags('Seller Ads Management')
 @Controller('ads')
@@ -149,5 +150,17 @@ export class AddController {
   async toggleSold(@Param('adId') adId: string, @Req() req: any) {
     const sellerId = req.user?.id;
     return await this.addService.toggleSoldStatus(adId, sellerId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':adId/view')
+  async viewAd(@Param('adId') adId: string, @Req() req: any) {
+    return await this.addService.recordView(adId, req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(':adId/viewers')
+  async getAdViewers(@Param('adId') adId: string, @Req() req: any) {
+    return await this.addService.getAdViewers(adId, req.user.id);
   }
 }

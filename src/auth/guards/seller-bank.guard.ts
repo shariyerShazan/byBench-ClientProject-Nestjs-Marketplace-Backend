@@ -15,9 +15,12 @@ export class SellerBankGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const user = request.user;
 
-    // 1. Basic User & Status Check
+    const user = await this.prisma.auth.findUnique({
+      where: { id: request.user.id },
+      include: { sellerProfile: true },
+    });
+
     if (!user) throw new UnauthorizedException('Please login first');
 
     if (user.isVerified !== true) {
@@ -32,18 +35,9 @@ export class SellerBankGuard implements CanActivate {
       throw new ForbiddenException('Only sellers can access this resource.');
     }
 
-    const sellerProfile = await this.prisma.sellerProfile.findUnique({
-      where: { authId: user.id },
-      include: { sellerBank: true },
-    });
-
-    if (!sellerProfile) {
-      throw new ForbiddenException('Seller profile not found.');
-    }
-
-    if (!sellerProfile.sellerBank) {
+    if (!user || !user.sellerProfile || !user.sellerProfile.isStripeVerified) {
       throw new ForbiddenException(
-        'Please add your bank account details before creating or managing ads.',
+        'Please complete your Stripe onboarding to access this feature.',
       );
     }
 

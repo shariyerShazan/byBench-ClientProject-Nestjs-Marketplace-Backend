@@ -13,7 +13,7 @@ async function bootstrap() {
   app.use(
     express.json({
       verify: (req: any, res, buf) => {
-        if (req.originalUrl.includes('/payments/webhook')) {
+        if (req.originalUrl.includes('/webhooks/stripe')) {
           req.rawBody = buf;
         }
       },

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
 import {
   Body,
   Controller,
@@ -11,7 +10,7 @@ import {
   Delete,
   UseInterceptors,
 } from '@nestjs/common';
-import { AnyFilesInterceptor } from '@nestjs/platform-express'; // File na thakleo multipart handle korbe
+import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -46,28 +45,27 @@ export class AdminController {
     return await this.adminService.createSellerByAdmin(dto);
   }
 
-  @Patch('update-seller/:id')
+  @Patch('update-seller/:userId')
   @HttpCode(HttpStatus.OK)
-  @ApiConsumes('multipart/form-data') // Update er jonno o same interface ashbe
+  @ApiConsumes('multipart/form-data')
   @UseInterceptors(AnyFilesInterceptor())
   @ApiOperation({ summary: 'Update seller auth and profile info' })
   async updateSeller(
-    @Param('id') id: string,
+    @Param('userId') id: string,
     @Body() dto: AdminUpdateSellerDto,
   ) {
     return await this.adminService.updateSellerByAdmin(id, dto);
   }
 
-  // Toggle ar Delete-e @ApiConsumes lagbe na, karon oigula shudhu Param nibe
-  @Patch('toggle-suspension/:id')
+  @Patch('toggle-suspension/:userId')
   @ApiOperation({ summary: 'Toggle Seller suspension' })
-  async toggleSuspension(@Param('id') id: string) {
+  async toggleSuspension(@Param('userId') id: string) {
     return await this.adminService.toggleSellerSuspension(id);
   }
 
-  @Delete('delete-seller/:id')
+  @Delete('delete-seller/:userIdid')
   @ApiOperation({ summary: 'Hard delete a seller' })
-  async deleteSeller(@Param('id') id: string) {
+  async deleteSeller(@Param('userId') id: string) {
     return await this.adminService.deleteSeller(id);
   }
 }
