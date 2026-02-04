@@ -52,6 +52,7 @@ export class AddService {
       buyer: ad.isSold && buyer ? { nickName: buyer.nickName } : null,
     };
   }
+
   private async validateSpecifications(
     subCategoryId: string,
     specifications: any,
@@ -367,7 +368,6 @@ export class AddService {
 
       if (!ad) throw new NotFoundException('Ad not found');
 
-      // Shudhu seller tar ad-er viewer list dekhte parbe
       if (ad.sellerId !== sellerId) {
         throw new ForbiddenException('You are not the owner of this ad');
       }
