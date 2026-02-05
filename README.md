@@ -1,67 +1,116 @@
-# 🚀 By-Bench Marketplace & Auction Engine
+# Shazan - Marketplace & Auction Platform
 
-A high-performance, industry-standard marketplace backend built with **NestJS**, **Prisma**, and **PostgreSQL**. This system is designed to handle complex multi-vendor workflows, real-time auctions, and dynamic category-based specifications.
+# **LiveLink: https://shazan-ad-marketplace-project.onrender.com**
+# **Swagger: https://shazan-ad-marketplace-project.onrender.com/docs**
 
----
+A full-featured marketplace and auction platform backend built with NestJS and PostgreSQL. Shazan enables users to buy, sell, and auction products with secure payments, real-time messaging, and a comprehensive seller management system.
 
-## 🔗 Live Links
-- **API Server:** [https://shazan-ad-marketplace-project.onrender.com](https://shazan-ad-marketplace-project.onrender.com)
-- **Interactive API Documentation:** [Swagger UI Docs](https://shazan-ad-marketplace-project.onrender.com/docs)
+## Features
 
----
+### Core Functionality
+- **User Authentication** - Email/password authentication with JWT and OTP verification
+- **Marketplace Listings** - Create, update, and manage product listings (Fixed price & Auction)
+- **Auction System** - Time-based auctions with bidding functionality
+- **Payment Processing** - Stripe integration for secure transactions with platform fee splitting
+- **Seller Management** - Seller verification, Stripe account linking, and seller profiles
+- **Commenting & Reviews** - Thread-based comments on listings
+- **Real-time Messaging** - User-to-user messaging with conversation management
+- **Image Management** - Cloudinary integration for product image hosting
+- **Categorization** - Hierarchical category system with custom specification fields
 
-## 🛠 Tech Stack
-- **Backend:** NestJS (Node.js framework)
-- **ORM:** Prisma
-- **Database:** PostgreSQL (Hosted on Render)
-- **Real-time:** Socket.io (Chat & Bidding)
-- **Payments:** Stripe API (Stripe Connect for Sellers)
-- **File Storage:** Cloudinary (Dynamic Image Handling)
-- **Validation:** Class-validator & Class-transformer
-- **Documentation:** Swagger (OpenAPI)
+### User Roles
+- **User** - Can browse, purchase, bid, and message
+- **Seller** - Can list products and manage inventory
+- **Admin** - Platform management and seller verification
 
----
+## Tech Stack
 
-## ✨ Key Features
+- **Backend**: NestJS
+- **Database**: PostgreSQL
+- **ORM**: Prisma
+- **Authentication**: JWT
+- **Payments**: Stripe
+- **File Storage**: Cloudinary
+- **Email**: Gmail SMTP
+- **Environment**: Node.js
 
-### 🛒 1. Advanced Marketplace Logic
-- **Dual Ad Types:** Support for both `FIXED` price listings and `AUCTION` based real-time bidding.
-- **Dynamic Specifications:** Sub-category-based dynamic fields (e.g., Mobiles have RAM/Storage, Cars have Year/Fuel Type).
-- **Pro Location Filtering:** Geolocation support with Latitude, Longitude, and City/State filtering.
+## Project Structure
 
-### 👥 2. Vendor Management (Sellers)
-- **Approval Workflow:** Admin can review and approve/reject seller requests.
-- **Stripe Onboarding:** Integrated Stripe account creation for sellers to receive payouts.
-- **Suspension System:** Admin can toggle user suspension status instantly.
+```
+├── src/
+│   ├── auth/              # Authentication module
+│   ├── users/             # User management
+│   ├── sellers/           # Seller profiles
+│   ├── ads/               # Marketplace listings
+│   ├── bids/              # Bidding system
+│   ├── payments/          # Payment processing
+│   ├── messages/          # Messaging system
+│   ├── comments/          # Comments & reviews
+│   ├── categories/        # Category management
+│   └── common/            # Shared utilities
+├── prisma/
+│   └── schema.prisma      # Database schema
+├── .env                   # Environment variables
+└── package.json           # Dependencies
+```
 
-### 💬 3. Real-time Communication
-- **Messenger:** One-to-one real-time chat between buyer and seller.
-- **File Transfer:** Send images/files directly through the chat interface.
-- **Read Receipts:** Track message status (Read/Unread).
-
-### 💰 4. Financial & Bidding Engine
-- **Fee Management:** Automated calculation of `adminFee` and `sellerAmount` for every transaction.
-- **Bidding System:** Real-time auction bids with high-water mark tracking.
-- **Stripe Webhooks:** Securely handle successful payments and update ad status.
-
----
-
-## 📊 Database Architecture (ERD)
-The system uses a highly relational schema to maintain data integrity across conversations, bids, payments, and advertisements.
-
-
-
----
-
-## 🚀 Installation & Setup
+## Getting Started
 
 ### Prerequisites
-- Node.js (v18+)
-- PostgreSQL Database
-- Cloudinary & Stripe API Keys
+- Node.js (v16 or higher)
+- PostgreSQL (v12 or higher)
+- npm or yarn
 
-### Step-by-Step
-1. **Clone the repository:**
+### Installation
+
+1. **Clone the repository**
    ```bash
-   git clone [https://github.com/your-username/by-bench-marketplace.git](https://github.com/your-username/by-bench-marketplace.git)
-   cd by-bench-marketplace
+   git clone <repository-url>
+   cd shazan
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
+
+4. **Set up the database**
+   ```bash
+   npx prisma migrate dev --name init
+   ```
+
+5. **Start the development server**
+   ```bash
+   npm run start:dev
+   ```
+
+The API will be available at `http://localhost:3000`
+
+## Documentation
+
+- **[Setup Guide](./SETUP.md)** - Detailed setup and configuration instructions
+- **[Database Schema](./DATABASE.md)** - Complete database documentation
+- **[Environment Variables](./ENV.md)** - Environment configuration guide
+- **[API Endpoints](./API.md)** - API documentation and examples
+
+## Environment Configuration
+
+See [ENV.md](./ENV.md) for detailed environment variable setup.
+
+## Database
+
+See [DATABASE.md](./DATABASE.md) for complete schema documentation and relationships.
+
+## Contributing
+
+Please read [CONTRIBUTING.md](./CONTRIBUTING.md) for details on code standards and submission process.
+
+## License
+
+Proprietary - All rights reserved
